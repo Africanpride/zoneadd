@@ -1,0 +1,88 @@
+#!/bin/bash
+# zoneadd: a simple script to create Bind9 zone files (currently master or slave) and update Bind9 config file
+# Copyright (C) 2006 Jean-Francois Hovinne - http://www.hovinne.com/
+
+# This program is free software; you can redistribute it and/or modify 
+# it under the terms of the GNU General Public License as published by 
+# the Free Software Foundation; either version 2 of the License, or 
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful, 
+# but WITHOUT ANY WARRANTY; without even the implied warranty of 
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the 
+# GNU General Public License for more details: http://www.gnu.org/licenses/gpl.txt.
+
+# USAGE: zoneadd yourdomain.tld
+# Before using this script, you'll need to customize values below.
+# The script will behave differently depending on ZONETYPE value.
+
+#CUSTOM VALUES
+TARGETDIR="/etc/bind/master"				# dir where zone file will be stored
+NAMEDCONFIGFILE="/etc/bind/named.conf.local"		# Bind configuration file
+ZONETYPE="master"					# zone type (master or slave)
+
+SOA="ns1.yourdomain.tld"				# default SOA
+HOSTMASTER="hostmaster.yourdomain.tld"			# default hostmaster
+NS1="ns1.yourdomain.tld"				# default NS1
+NS2="ns2.yourdomain.tld"				# default NS2
+
+DEFAULTMAIL="mx1.yourdomain.tld"			# default mail host
+DEFAULTFTP="www.yourdomain.tld"				# default ftp host
+DEFAULTWWW="www.yourdomain.tld"				# default www host
+MASTERS="192.168.0.1;"					# master ns hosts (if slave)
+#END CUSTOM VALUES
+
+#INIT
+ZONE=$1
+FILE="$TARGETDIR/$ZONE"
+DATE=`date +%Y%m%d`
+
+#ADD ZONE TO CONFIG FILE
+
+if [ "$ZONETYPE" == "master" ]
+then
+	echo "zone \"$ZONE\" IN {" >> $NAMEDCONFIGFILE
+	echo "	type master;" >> $NAMEDCONFIGFILE
+	echo "	file \"$FILE\";" >> $NAMEDCONFIGFILE
+	echo "	};" >> $NAMEDCONFIGFILE
+	echo "Added zone $ZONE to config file."
+else
+	echo "zone \"$ZONE\" IN {" >> $NAMEDCONFIGFILE
+	echo "	type slave;" >> $NAMEDCONFIGFILE
+	echo "	file \"$FILE\";" >> $NAMEDCONFIGFILE
+	echo "	masters	{ $MASTERS };" >> $NAMEDCONFIGFILE
+	echo "	};" >> $NAMEDCONFIGFILE
+	echo "Added zone $ZONE to config file."
+	exit
+fi
+
+#CREATE ZONE FILE
+
+echo "; Zone file for $ZONE, created $DATE" >> $FILE
+
+echo "\$TTL	86400" >> $FILE
+echo "@	IN	SOA	${SOA}. ${HOSTMASTER}. (" >> $FILE
+echo "			${DATE}01	; Serial" >> $FILE
+echo "			21600		; Refresh" >> $FILE
+echo "			3600		; Retry" >> $FILE
+echo "			604800		; Expire" >> $FILE
+echo "			21600 )	; Negative Cache TTL"  >> $FILE
+
+echo "@	IN	NS	${NS1}." >> $FILE
+echo "@	IN	NS	${NS2}." >> $FILE
+
+echo "	IN	MX	10	${DEFAULTMAIL}." >> $FILE
+
+echo "mail	IN	CNAME	${DEFAULTMAIL}." >> $FILE
+echo "ftp	IN	CNAME	${DEFAULTFTP}." >> $FILE
+echo "www	IN	CNAME	${DEFAULTWWW}." >> $FILE
+
+echo "Zone $ZONE created with default values."
+
+read -s -n1 -p "Do you want to edit it (y/n) ? " REP
+echo
+
+if [ "$REP" == "y" ]
+then
+	exec nano $FILE
+fi
